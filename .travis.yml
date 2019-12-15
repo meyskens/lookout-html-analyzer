@@ -1,0 +1,33 @@
+language: go
+
+go:
+  - '1.12.x'
+
+env:
+  - GO111MODULE=on
+
+stages:
+  - name: test
+  - name: release
+    if: tag IS present
+  - name: deploy
+    if: tag IS present
+
+go_import_path: github.com/meyskens/lookout-html-analyzer
+
+jobs:
+  include:
+    - name: 'Unit tests'
+      stage: test
+      script: make test
+    - name: 'Push image to Docker Hub'
+      stage: release
+      script:
+        - PKG_OS=linux make packages
+        - DOCKER_PUSH_LATEST=true make docker-push
+    - name: 'Deploy to staging'
+      stage: deploy
+      install:
+        - make install-helm
+      script:
+        - HELM_RELEASE=lookout-html-analyzer HELM_CHART=lookout-html-analyzer K8S_NAMESPACE=lookout HELM_ARGS="--repo https://maartje.dev/charts-srcd/stable/ --set image.tag=$TRAVIS_TAG -f .helm_staging.yml" make deploy
